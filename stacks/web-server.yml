@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Web server for # project name
+
+Parameters:
+  Project:
+    Type: String
+  NodeEnv:
+    Type: String
+  PrivateSubnet01Id:
+    Type: String
+  VpcId:
+    Type: String
+  
+Resources:
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for Web Server
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - Description: 'Configure inbound https to instance (ipv4)'
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - Description: 'Configure inbound https to instance (ipv6)'
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: ::/0
+        - Description: 'Configure inbound ssh to instance'
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - Description: 'Configure inbound ssm to instance'
+          IpProtocol: tcp
+          FromPort: 21
+          ToPort: 21
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${Project}-${NodeEnv}-security-group'
+
+  LaunchTemplate:
+    DependsOn:
+      - SecurityGroup
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${Project}-${NodeEnv}-launch-template'
+      LaunchTemplateData:
+        ImageId: ami-082b1f4237bd816a1 # Ubuntu EC2 20.04 LTS (HVM), SSD Volume Type (64bit x86)
+        InstanceType: t3.medium
+        KeyName: !Sub '${Project}-${NodeEnv}-keypair'
+        IamInstanceProfile:
+          Arn: !GetAtt EC2InstanceProfile.Arn # Create instance profile on top
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: false # EC2 is in private subnet
+            DeleteOnTermination: true
+            DeviceIndex: 0
+            Groups:
+              - !GetAtt SecurityGroup.GroupId
+            SubnetId: !Ref PrivateSubnet01Id
+        BlockDeviceMappings:
+          - DeviceName: /dev/sda1
+            Ebs:
+              DeleteOnTermination: true
+              Encrypted: false
+              VolumeSize: 30
+              VolumeType: gp2
+        UserData:
+          Fn::Base64: !Sub |
+            sudo su
+            cd /
+            sudo apt update
+
+            # install net-tools
+            sudo apt install net-tools -y
+
+            # install git
+            sudo apt install git -y
+
+            # install nginx
+            sudo apt update
+            sudo apt install nginx -y
+
+            # install curl and nvm
+            sudo apt install curl -y
+            curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
+            nvm install v16
+            nvm use v16
+
+            # install angular cli
+            npm install -g @angular/cli
+
+            # install pm2
+            npm install pm2 -g
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub '${Project}-${NodeEnv}-server'
+
+  Instance:
+    DependsOn:
+      - LaunchTemplate
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+
+  
+
+
+
+    

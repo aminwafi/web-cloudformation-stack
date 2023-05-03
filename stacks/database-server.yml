@@ -1,0 +1,117 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Database server for # project name
+
+Parameters:
+  Project:
+    Type: String
+  NodeEnv:
+    Type: String
+  PrivateSubnet01Id:
+    Type: String
+  VpcId:
+    Type: String
+
+Resources:
+  # Attach ssm policy to role
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  # Create instance profile with above role
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for DB Server
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - Description: 'Configure inbound tcp for 27017'
+          IpProtocol: tcp
+          FromPort: 27017
+          ToPort: 27017
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${Project}-${NodeEnv}-database-security-group'
+  
+  LaunchTemplate:
+    DependsOn:
+      - SecurityGroup
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${Project}-${NodeEnv}-database-launch-template'
+      LaunchTemplateData:
+        ImageId: ami-082b1f4237bd816a1 # Ubuntu 20.04 LTS (HVM), SSD Volume Type (64bit x86)
+        InstanceType: t2.medium
+        KeyName: !Sub '${Project}-${NodeEnv}-database-keypair'
+        IamInstanceProfile:
+          Arn: !GetAtt InstanceProfile.Arn
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: false
+            DeleteOnTermination: true
+            DeviceIndex: 0
+            Groups:
+              - !GetAtt SecurityGroup.GroupId
+            SubnetId: !Ref PrivateSubnet01Id
+        BlockDeviceMappings:
+          - DeviceName: /dev/sda1
+            Ebs:
+              DeleteOnTermination: true
+              Encrypted: false
+              VolumeSize: 30
+              VolumeType: gp2
+        UserData:
+          Fn::Base64: !Sub |
+            sudo su
+            cd /
+            sudo apt update
+
+            # get mongodb package
+            curl -fsSL https://www.mongodb.org/static/pgp/server-5.0.asc | sudo apt-key add -
+            echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/5.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-5.0.list
+            sudo apt update
+
+            # get libssl (dependencies for mongodb)
+            sudo wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+            sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+
+            # install mongodb
+            sudo apt install mongodb-org -y
+
+            # enable and start mongodb services
+            sudo systemctl restart mongodb
+            sudo systemctl enable mongodb
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub '${Project}-${NodeEnv}-database'
+  
+  Instance:
+    DependsOn:
+      - EC2LaunchTemplate
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+
+
+

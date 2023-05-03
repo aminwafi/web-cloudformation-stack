@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: S3 Storage for # project name
+
+Parameters:
+  Project:
+    Type: String
+  NodeEnv:
+    Type: String
+
+Resources:
+  BucketUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${Project}-${NodeEnv}-storage-access'
+      Tags:
+        - Key: ApplicationName
+          Value: !Sub ${Project}
+        - Key: Environment
+          Value: !Sub ${NodeEnv}
+  
+  BucketAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      Status: Active
+      UserName: !Ref BucketUser
+  
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${Project}-${NodeEnv}-assets-storage'
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionDefault:
+              SSEAlgorithm: 'AES2566'
+      Tags:
+        - Key: ApplicationName
+          Value: !Sub ${Project}
+        - Key: Environment
+          Value: !Sub ${NodeEnv}
+
+  BucketPolicy:
+    DependsOn:
+      - Bucket
+      - BucketUser
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:user/${BucketUser}'
+            Action:
+              - 's3:*'
+            Resource:
+              - !Sub 'arn:aws:s3:::${Bucket}/*'
+
+Outputs:
+  BucketUsername:
+    Value: !Ref BucketUser
+  BucketAccessKeyId:
+    Value: !Ref BucketAccessKey
+  BucketSecretAccessKey:
+    Value: !Ref BucketAccessKey.SecretAccessKey
+  

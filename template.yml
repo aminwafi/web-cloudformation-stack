@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: web-template
+
+Parameters:
+  NodeEnv:
+    Type: String
+  Project:
+    Type: String
+
+Resources:
+  VPC:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: './stacks/vpc.yml'
+      Parameters:
+        Project: !Ref Project
+        NodeEnv: !Ref NodeEnv
+
+  S3Storage:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: './stacks/storage.yml'
+      Parameters:
+        Project: !Ref Project
+        NodeEnv: !Ref NodeEnv
+
+  MongoDBServer:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: './stacks/database-server.yml'
+      Parameters:
+        Project: !Ref Project
+        NodeEnv: !Ref NodeEnv
+        PrivateSubnet01Id: 
+          - Fn::ImportValue:
+            'Fn::Sub': '${AWS::Region}-${AWS::StackName}-PrivateSubnet'
+        VpcId:
+          - Fn::ImportValue:
+            'Fn::Sub': '${AWS::Region}-${AWS::StackName}-VPC'
+
+  WebServer:
+    DependsOn:
+      - S3Storage
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: './stacks/web-server.yml'
+      Parameters:
+        Project: !Ref Project
+        NodeEnv: !Ref NodeEnv
+        PrivateSubnet01Id:
+          - Fn::ImportValue:
+            'Fn::Sub': '${AWS::Region}-${AWS::StackName}-PrivateSubnet'
+        VpcId:
+          - Fn::ImportValue:
+            'Fn::Sub': '${AWS::Region}-${AWS::StackName}-VPC'
+
+  IAMRole:
+    DependsOn:
+      - S3Storage
+      - WebServer
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: './stacks/iam-role.yml'
+      Parameters:
+        Project: !Ref Project
+        NodeEnv: !Ref NodeEnv

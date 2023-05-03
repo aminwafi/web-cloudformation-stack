@@ -1,0 +1,97 @@
+# https://github.com/awslabs/aws-cloudformation-templates/blob/master/aws/services/VPC/VPC_With_Managed_NAT_And_Private_Subnet.yaml
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Vpc for # project name
+
+Parameters:
+  Project:
+    Type: String
+  NodeEnv:
+    Type: String
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      CidrBlock: '10.0.0.0/16'
+    Tags:
+      - Key: Name
+        Value: !Sub '${Project}-${NodeEnv}-vpc'
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: 'ap-southeast-1b'
+      CidrBlock: '10.0.0.0/24'
+      MapPublicIpOnLaunch: 'true'
+      Tags:
+        - Key: Name
+          Value: !Sub '${Project}-${NodeEnv}-public-subnet'
+        - Key: Network
+          Value: 'Public'
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: 'ap-southeast-1b'
+      CidrBlock: '10.0.1.0/24'
+      Tags:
+        - Key: Name
+          Value: !Sub '${Project}-${NodeEnv}-private-subnet'
+        - Key: Network
+          Value: 'Private'
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${Project}-${NodeEnv}-igw'
+  
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${Project}-${NodeEnv}-public-route-table'
+
+  Route:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: '0.0.0.0/0'  # anywhere
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref RouteTable
+
+Outputs:
+  VPCId:
+    Description: 'The id of the newly created VPC'
+    Value: !Ref VPC
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-VPC'
+  
+  PrivateSubnetId:
+    Description: 'The id of the newly created private subnet'
+    Value: !Ref PrivateSubnet
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-PrivateSubnet'
+
+
