@@ -55,13 +55,4 @@ Resources:
           - Fn::ImportValue:
             'Fn::Sub': '${AWS::Region}-${AWS::StackName}-VPC'
 
-  IAMRole:
-    DependsOn:
-      - S3Storage
-      - WebServer
-    Type: AWS::Serverless::Application
-    Properties:
-      Location: './stacks/iam-role.yml'
-      Parameters:
-        Project: !Ref Project
-        NodeEnv: !Ref NodeEnv
+
