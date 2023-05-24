@@ -38,8 +38,8 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - BucketKeyEnabled: true
-            ServerSideEncryptionDefault:
-              SSEAlgorithm: 'AES2566'
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'AES256'
       Tags:
         - Key: ApplicationName
           Value: !Sub ${Project}
@@ -63,12 +63,4 @@ Resources:
               - 's3:*'
             Resource:
               - !Sub 'arn:aws:s3:::${Bucket}/*'
-
-Outputs:
-  BucketUsername:
-    Value: !Ref BucketUser
-  BucketAccessKeyId:
-    Value: !Ref BucketAccessKey
-  BucketSecretAccessKey:
-    Value: !Ref BucketAccessKey.SecretAccessKey
   

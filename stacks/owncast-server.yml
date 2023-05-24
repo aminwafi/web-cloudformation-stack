@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Database server for # project name
+Description: Owncast server for # project name
 
 Parameters:
   Project:
@@ -15,7 +15,7 @@ Resources:
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
-        Statement:
+        Statement: 
           - Effect: Allow
             Principal:
               Service:
@@ -35,28 +35,43 @@ Resources:
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security Group for DB Server
+      GroupDescription: Security Group for Owncast server
       VpcId: 
         Fn::ImportValue:
           VpcId
       SecurityGroupIngress:
-        - Description: 'Configure inbound tcp for 27017'
+        - Description: 'Configure inbound https to instance (ipv4)'
           IpProtocol: tcp
-          FromPort: 27017
-          ToPort: 27017
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - Description: 'Configure inbound https to instance (ipv6)'
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIpv6: ::/0
+        - Description: 'Configure inbound ssm to instance'
+          IpProtocol: tcp
+          FromPort: 21
+          ToPort: 21
+          CidrIp: 0.0.0.0/0
+        - Description: 'Configure inbound owncast admin port'
+          IpProtocol: tcp
+          FromPort: 1935
+          ToPort: 1935
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: !Sub '${Project}-${NodeEnv}-database-security-group'
-  
+          Value: !Sub '${Project}-${NodeEnv}-owncast-security-group'
+
   LaunchTemplate:
     DependsOn: SecurityGroup
     Type: AWS::EC2::LaunchTemplate
     Properties:
-      LaunchTemplateName: !Sub '${Project}-${NodeEnv}-database-launch-template'
+      LaunchTemplateName: !Sub '${Project}-${NodeEnv}-owncast-launch-template'
       LaunchTemplateData:
-        ImageId: ami-082b1f4237bd816a1 # Ubuntu 20.04 LTS (HVM), SSD Volume Type (64bit x86)
-        InstanceType: t2.medium
+        ImageId: ami-082b1f4237bd816a1
+        InstanceType: t3.medium
         KeyName: !Sub '${Project}-${NodeEnv}-keypair'
         IamInstanceProfile:
           Arn: !GetAtt InstanceProfile.Arn
@@ -82,30 +97,30 @@ Resources:
             cd /
             sudo apt update
 
-            # get mongodb package
-            curl -fsSL https://www.mongodb.org/static/pgp/server-5.0.asc | sudo apt-key add -
-            echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/5.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-5.0.list
-            sudo apt update
+            # install nginx
+            sudo apt install nginx -y 
 
             # install wget
             sudo apt install wget -y
 
-            # get libssl (dependencies for mongodb)
-            sudo wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
-            sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+            # install curl and nvm
+            sudo apt install curl -y
+            curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
+            nvm install v16
+            nvm use v16
 
-            # install mongodb
-            sudo apt install mongodb-org -y
+            # install pm2
+            npm install pm2 -g
 
-            # enable and start mongodb services
-            sudo systemctl restart mongodb
-            sudo systemctl enable mongodb
+            # install owncast
+            sudo wget https://owncast.online/install.sh
+            sudo bash install.sh
         TagSpecifications:
           - ResourceType: instance
             Tags:
               - Key: Name
-                Value: !Sub '${Project}-${NodeEnv}-database'
-  
+                Value: !Sub '${Project}-${NodeEnv}-owncast'
+
   Instance:
     DependsOn: LaunchTemplate
     Type: AWS::EC2::Instance
@@ -113,6 +128,5 @@ Resources:
       LaunchTemplate:
         LaunchTemplateId: !Ref LaunchTemplate
         Version: !GetAtt LaunchTemplate.LatestVersionNumber
-
 
 

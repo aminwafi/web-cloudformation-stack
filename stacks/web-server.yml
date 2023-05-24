@@ -7,17 +7,38 @@ Parameters:
     Type: String
   NodeEnv:
     Type: String
-  PrivateSubnet01Id:
-    Type: String
-  VpcId:
-    Type: String
   
 Resources:
+  # Attach ssm policy to role
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  # Create instance profile with above role
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for Web Server
-      VpcId: !Ref VpcId
+      VpcId: 
+        Fn::ImportValue:
+          VpcId
       SecurityGroupIngress:
         - Description: 'Configure inbound https to instance (ipv4)'
           IpProtocol: tcp
@@ -28,8 +49,8 @@ Resources:
           IpProtocol: tcp
           FromPort: 443
           ToPort: 443
-          CidrIp: ::/0
-        - Description: 'Configure inbound ssh to instance'
+          CidrIpv6: ::/0
+        - Description: 'Configure inbound ssh tunnel to instance'
           IpProtocol: tcp
           FromPort: 22
           ToPort: 22
@@ -44,8 +65,7 @@ Resources:
           Value: !Sub '${Project}-${NodeEnv}-security-group'
 
   LaunchTemplate:
-    DependsOn:
-      - SecurityGroup
+    DependsOn: SecurityGroup
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateName: !Sub '${Project}-${NodeEnv}-launch-template'
@@ -54,14 +74,16 @@ Resources:
         InstanceType: t3.medium
         KeyName: !Sub '${Project}-${NodeEnv}-keypair'
         IamInstanceProfile:
-          Arn: !GetAtt EC2InstanceProfile.Arn # Create instance profile on top
+          Arn: !GetAtt InstanceProfile.Arn
         NetworkInterfaces:
           - AssociatePublicIpAddress: false # EC2 is in private subnet
             DeleteOnTermination: true
             DeviceIndex: 0
             Groups:
               - !GetAtt SecurityGroup.GroupId
-            SubnetId: !Ref PrivateSubnet01Id
+            SubnetId: 
+              Fn::ImportValue:
+                PrivateSubnetId
         BlockDeviceMappings:
           - DeviceName: /dev/sda1
             Ebs:
@@ -103,16 +125,10 @@ Resources:
                 Value: !Sub '${Project}-${NodeEnv}-server'
 
   Instance:
-    DependsOn:
-      - LaunchTemplate
+    DependsOn: LaunchTemplate
     Type: AWS::EC2::Instance
     Properties:
       LaunchTemplate:
         LaunchTemplateId: !Ref LaunchTemplate
         Version: !GetAtt LaunchTemplate.LatestVersionNumber
 
-  
-
-
-
-    

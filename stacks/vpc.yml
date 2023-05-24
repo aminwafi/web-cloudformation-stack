@@ -16,17 +16,17 @@ Resources:
     Properties:
       EnableDnsSupport: 'true'
       EnableDnsHostnames: 'true'
-      CidrBlock: '10.0.0.0/16'
-    Tags:
-      - Key: Name
-        Value: !Sub '${Project}-${NodeEnv}-vpc'
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: !Sub '${Project}-${NodeEnv}-vpc'
 
   PublicSubnet:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: 'ap-southeast-1b'
-      CidrBlock: '10.0.0.0/24'
+      CidrBlock: 10.0.0.0/24
       MapPublicIpOnLaunch: 'true'
       Tags:
         - Key: Name
@@ -39,7 +39,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: 'ap-southeast-1b'
-      CidrBlock: '10.0.1.0/24'
+      CidrBlock: 10.0.1.0/24
       Tags:
         - Key: Name
           Value: !Sub '${Project}-${NodeEnv}-private-subnet'
@@ -72,7 +72,7 @@ Resources:
     DependsOn: GatewayAttachment
     Properties:
       RouteTableId: !Ref RouteTable
-      DestinationCidrBlock: '0.0.0.0/0'  # anywhere
+      DestinationCidrBlock: 0.0.0.0/0  # anywhere
       GatewayId: !Ref InternetGateway
 
   PublicSubnetRouteTableAssociation:
@@ -86,12 +86,12 @@ Outputs:
     Description: 'The id of the newly created VPC'
     Value: !Ref VPC
     Export:
-      Name: !Sub '${AWS::Region}-${AWS::StackName}-VPC'
+      Name: VpcId
   
   PrivateSubnetId:
     Description: 'The id of the newly created private subnet'
     Value: !Ref PrivateSubnet
     Export:
-      Name: !Sub '${AWS::Region}-${AWS::StackName}-PrivateSubnet'
+      Name: PrivateSubnetId
 
 

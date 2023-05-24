@@ -25,34 +25,37 @@ Resources:
         Project: !Ref Project
         NodeEnv: !Ref NodeEnv
 
-  MongoDBServer:
-    Type: AWS::Serverless::Application
-    Properties:
-      Location: './stacks/database-server.yml'
-      Parameters:
-        Project: !Ref Project
-        NodeEnv: !Ref NodeEnv
-        PrivateSubnet01Id: 
-          - Fn::ImportValue:
-            'Fn::Sub': '${AWS::Region}-${AWS::StackName}-PrivateSubnet'
-        VpcId:
-          - Fn::ImportValue:
-            'Fn::Sub': '${AWS::Region}-${AWS::StackName}-VPC'
-
   WebServer:
+    Type: AWS::Serverless::Application
     DependsOn:
       - S3Storage
-    Type: AWS::Serverless::Application
+      - VPC
     Properties:
       Location: './stacks/web-server.yml'
       Parameters:
         Project: !Ref Project
         NodeEnv: !Ref NodeEnv
-        PrivateSubnet01Id:
-          - Fn::ImportValue:
-            'Fn::Sub': '${AWS::Region}-${AWS::StackName}-PrivateSubnet'
-        VpcId:
-          - Fn::ImportValue:
-            'Fn::Sub': '${AWS::Region}-${AWS::StackName}-VPC'
+
+  MongoDBServer:
+    Type: AWS::Serverless::Application
+    DependsOn:
+      - WebServer 
+      - VPC
+    Properties:
+      Location: './stacks/database-server.yml'
+      Parameters:
+        Project: !Ref Project
+        NodeEnv: !Ref NodeEnv
+
+  OwncastServer:
+    Type: AWS::Serverless::Application
+    DependsOn:
+      - WebServer
+      - VPC
+    Properties:
+      Location: './stacks/owncast-server.yml'
+      Parameters:
+        Project: !Ref Project
+        NodeEnv: !Ref NodeEnv
 
 
